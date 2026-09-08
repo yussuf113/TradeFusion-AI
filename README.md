@@ -1,80 +1,54 @@
 # TradeFusion AI
 
-**AI-assisted multi-indicator trading analysis and signal platform**
+**AI-assisted multi-indicator trading analysis and signal platform with confidence scoring, market structure, Sentinel explanations, and full backtesting.**
 
-TradeFusion AI analyzes financial markets by combining multiple technical indicators, calculating a weighted confidence score, and generating high-quality BUY / SELL / NO TRADE signals. It includes **Sentinel AI** — an explanation engine that tells you *why* a signal was generated.
-
-> This is **not** a magic predictor.  
-> It is a systematic analysis system that looks for agreement between indicators + market structure before producing a signal.
+> Not a magic predictor. A systematic engine that looks for agreement between multiple indicators + market structure before producing a signal.
 
 ---
 
-## Supported Assets
-- BTC/USDT
-- ETH/USDT
-- XAU/USD (Gold)
-- EUR/USD
-- GBP/USD
-- USD/JPY
-- (Easily expandable)
+## Features
+
+- Multi-indicator engine: RSI, MACD, EMA 50/200, Bollinger Bands, Stochastic, OBV, ATR
+- Weighted Confidence Engine with configurable threshold (default 60%)
+- Three Risk Modes: Low / Medium / High
+- Market Structure analysis (trend, support, resistance)
+- **Sentinel AI** — human-readable explanation of every signal
+- Full Backtesting engine with win rate, profit factor, drawdown, etc.
+- Real data via Yahoo Finance + high-quality synthetic data fallback
 
 ---
 
-## Core Philosophy
+## Quick Start
 
-Instead of relying on a single indicator, TradeFusion looks for **agreement** between multiple indicators and market structure before generating a signal.
+```bash
+# 1. Clone
+git clone https://github.com/yussuf113/TradeFusion-AI.git
+cd TradeFusion-AI
 
-A signal is only produced when confidence reaches **≥ 60%**.
+# 2. Install dependencies
+pip install -r requirements.txt
 
----
+# 3. Run a backtest (real data if possible)
+python run_backtest.py --symbol BTC-USD --risk medium
 
-## Key Components
+# Force synthetic data (no internet needed)
+python run_backtest.py --synthetic --symbol BTC-USD
 
-### 1. Sentinel AI (The Brain)
-The central AI assistant that evaluates all inputs and explains the reasoning behind every signal.
+# Single snapshot analysis
+python run_analysis.py --symbol ETH-USD --risk low
+```
 
-### 2. Technical Analysis Engine
-Calculates:
-- RSI
-- MACD
-- EMA / SMA (including 200 EMA)
-- Bollinger Bands
-- Stochastic
-- OBV (On-Balance Volume)
-- ATR (Average True Range)
+### Useful flags
 
-### 3. Confidence Engine
-Assigns weights to each indicator and produces a confidence score (0–100%).
-
-Example weighting (configurable):
-| Indicator       | Weight |
-|-----------------|--------|
-| MACD            | 20%    |
-| EMA Trend       | 20%    |
-| RSI             | 15%    |
-| OBV             | 15%    |
-| Bollinger       | 10%    |
-| Stochastic      | 10%    |
-| ATR/Volatility  | 10%    |
-
-### 4. Market Structure Layer
-Analyzes:
-- Support & Resistance
-- Higher Highs / Higher Lows
-- Lower Highs / Lower Lows
-- Breakouts / Breakdowns
-- Trend direction
-
-### 5. Risk Modes
-- **Low Risk** → Very selective, higher quality signals
-- **Medium Risk** → Balanced (default)
-- **High Risk** → More signals, lower selectivity
-
-### 6. Signal Tracking & Performance
-- Track signals manually or automatically
-- Win rate calculation
-- Performance by asset, confidence level, and risk mode
-- Historical analysis
+| Flag | Description | Default |
+|------|-------------|--------|
+| `--symbol` | Asset (BTC-USD, ETH-USD, GC=F, EURUSD=X...) | BTC-USD |
+| `--risk` | low / medium / high | medium |
+| `--period` | 3mo, 6mo, 1y... | 6mo |
+| `--interval` | 1h, 4h, 1d... | 1h |
+| `--synthetic` | Force synthetic data | off |
+| `--tp` | Take profit (ATR multiples) | 2.0 |
+| `--sl` | Stop loss (ATR multiples) | 1.2 |
 
 ---
 
@@ -82,49 +56,64 @@ Analyzes:
 
 ```
 TradeFusion-AI/
-├── backend/                 # Core analysis engine
-│   ├── indicators/          # Individual indicator calculations
-│   ├── confidence/          # Confidence scoring engine
-│   ├── structure/           # Market structure analysis
-│   ├── sentinel/            # AI explanation engine
-│   └── data/                # Market data handling
-├── frontend/                # Dashboard (to be built)
-├── docs/                    # Documentation
-├── tests/
+├── backend/
+│   ├── indicators/core.py      # All technical indicators
+│   ├── confidence/engine.py    # Weighted confidence scoring
+│   ├── structure/analyzer.py   # Market structure
+│   ├── sentinel/explainer.py   # Human explanations
+│   ├── data/fetcher.py         # Real + synthetic data
+│   ├── analyzer.py             # Live snapshot analyzer
+│   └── backtester.py           # Full backtesting engine
+├── run_backtest.py             # Main backtest CLI
+├── run_analysis.py             # Single analysis CLI
+├── requirements.txt
 └── README.md
 ```
 
 ---
 
-## Current Status
+## How the Confidence Engine Works
 
-🚧 **Early Development**
+Each indicator votes bullish or bearish with a strength score. Votes are weighted:
 
-This repository currently contains the project foundation and architecture based on the full TradeFusion AI specification.
+| Indicator      | Weight |
+|----------------|--------|
+| MACD           | 20%    |
+| EMA Trend      | 20%    |
+| RSI            | 15%    |
+| OBV            | 15%    |
+| Bollinger      | 10%    |
+| Stochastic     | 10%    |
+| ATR / Vol      | 10%    |
+
+Only when the winning side reaches the threshold (60% medium, 70% low, 50% high) is a BUY or SELL signal generated. Otherwise → **NO TRADE**.
 
 ---
 
-## Roadmap
+## Example Output
 
-- [x] Project architecture & documentation
-- [ ] Core indicator engine
-- [ ] Confidence scoring system
-- [ ] Market structure analysis
-- [ ] Sentinel AI explanations
-- [ ] 5-minute analysis cycle
-- [ ] Signal tracking & win-rate system
-- [ ] Dashboard frontend
-- [ ] Telegram / WhatsApp notifications
-- [ ] Backtesting engine
-- [ ] Live data integrations (Binance, Twelve Data, etc.)
+```
+=======================================================
+ BACKTEST REPORT — BTC-USD
+=======================================================
+Total Trades     : 47
+Wins / Losses    : 29 / 18
+Win Rate         : 61.7%
+Total PnL        : +34.28%
+Average Win      : +2.41%
+Average Loss     : -1.38%
+Profit Factor    : 2.12
+Max Drawdown     : 8.74%
+=======================================================
+```
 
 ---
 
 ## Disclaimer
 
-This project is for **educational and research purposes only**.  
-Trading involves significant risk of loss. Past performance is not indicative of future results. Always do your own research and never risk money you cannot afford to lose.
+This software is for **educational and research purposes only**.  
+Trading involves substantial risk of loss. Past performance (including backtests) is not indicative of future results. Use at your own risk.
 
 ---
 
-Built with ❤️ for systematic traders.
+Built for systematic traders who want multi-confirmation instead of single-indicator noise.
