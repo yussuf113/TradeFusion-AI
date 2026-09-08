@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-"""TradeFusion AI - Multi-Asset Scanner"""
+"""
+TradeFusion AI - Multi-Asset Scanner
+Optional: auto-place paper Binance orders on signals.
+"""
 
-import backend.config  # auto-loads .env
+import backend.config
 import argparse
 import time
 from datetime import datetime
@@ -10,6 +13,7 @@ from backend.data.fetcher import get_data
 from backend.analyzer import TradeFusionAnalyzer
 from backend.notifications.telegram import TelegramNotifier
 from backend.performance.tracker import PerformanceTracker
+from backend.execution.binance_exec import BinanceExecutor
 
 DEFAULT_SYMBOLS = [
     "BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD",
@@ -18,7 +22,8 @@ DEFAULT_SYMBOLS = [
 ]
 
 
-def scan_once(symbols, risk_mode, send_telegram=False, track=True, min_confidence=60.0):
+def scan_once(symbols, risk_mode, send_telegram=False, track=True, min_confidence=68.0,
+              paper_trade=False, executor=None):
     analyzer = TradeFusionAnalyzer(risk_mode=risk_mode)
     notifier = TelegramNotifier()
     tracker = PerformanceTracker() if track else None
@@ -26,7 +31,7 @@ def scan_once(symbols, risk_mode, send_telegram=False, track=True, min_confidenc
 
     print(f"\n{'='*60}")
     print(f" TradeFusion Scanner — {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
-    print(f" Risk Mode: {risk_mode.upper()} | Assets: {len(symbols)}")
+    print(f" Risk: {risk_mode.upper()} | Assets: {len(symbols)} | Paper: {paper_trade}")
     print(f"{'='*60}\n")
 
     for symbol in symbols:
@@ -45,6 +50,9 @@ def scan_once(symbols, risk_mode, send_telegram=False, track=True, min_confidenc
                 if send_telegram and notifier.is_configured:
                     notifier.send_signal(analysis)
                     print(f"   → Telegram sent")
+                if paper_trade and executor:
+                    order = executor.place_order(symbol, signal, conf, price=price)
+                    print(f"   → Paper order: {order.get('status', order)}")
         except Exception as e:
             print(f"❌ {symbol:12} | Error: {e}")
 
@@ -52,6 +60,8 @@ def scan_once(symbols, risk_mode, send_telegram=False, track=True, min_confidenc
     sells = sum(1 for r in results if r["signal"] == "SELL")
     print(f"\n{'─'*60}")
     print(f" Summary: {buys} BUY | {sells} SELL | {len(results)-buys-sells} NO TRADE")
+    if paper_trade and executor:
+        print(f" Paper trades so far: {len(executor.get_paper_trades())}")
     print(f"{'─'*60}\n")
     return results
 
@@ -64,16 +74,22 @@ def main():
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--telegram", action="store_true")
     parser.add_argument("--no-track", action="store_true")
-    parser.add_argument("--min-conf", type=float, default=60.0)
+    parser.add_argument("--min-conf", type=float, default=68.0)
+    parser.add_argument("--paper", action="store_true", help="Auto-place paper Binance orders on signals")
     args = parser.parse_args()
 
     print("🚀 TradeFusion AI Scanner started")
+    executor = BinanceExecutor(live=False) if args.paper else None
+    if args.paper:
+        print("   Paper Binance orders: ON")
     if args.telegram:
-        notifier = TelegramNotifier()
-        print("   Telegram:", "enabled" if notifier.is_configured else "NOT configured")
+        print("   Telegram:", "ON" if TelegramNotifier().is_configured else "not configured")
 
     while True:
-        scan_once(args.symbols, args.risk, args.telegram, not args.no_track, args.min_conf)
+        scan_once(
+            args.symbols, args.risk, args.telegram, not args.no_track,
+            args.min_conf, paper_trade=args.paper, executor=executor,
+        )
         if args.once:
             break
         print(f"Next scan in {args.interval}s... (Ctrl+C to stop)")
@@ -81,6 +97,8 @@ def main():
             time.sleep(args.interval)
         except KeyboardInterrupt:
             print("\nScanner stopped.")
+            if executor:
+                print(f"Total paper trades: {len(executor.get_paper_trades())}")
             break
 
 

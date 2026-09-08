@@ -1,10 +1,11 @@
 """
-TradeFusion AI - Backtesting Engine (with cooldown to reduce overtrading)
+TradeFusion AI - Backtesting Engine
+Features: cooldown, trailing stops, configurable TP/SL
 """
 
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Optional
+from typing import List, Optional
 from dataclasses import dataclass, field
 
 from backend.indicators.core import compute_all_indicators
@@ -22,6 +23,9 @@ class Trade:
     pnl: float = 0.0
     pnl_pct: float = 0.0
     exited: bool = False
+    # trailing state
+    peak_price: float = 0.0
+    current_sl: float = 0.0
 
 
 @dataclass
@@ -45,7 +49,10 @@ class Backtester:
         take_profit_atr: float = 2.5,
         stop_loss_atr: float = 1.2,
         min_confidence: float = None,
-        cooldown_bars: int = 6,  # wait N bars after a trade before new entry
+        cooldown_bars: int = 6,
+        use_trailing: bool = True,
+        trailing_atr: float = 1.0,
+        trailing_activate_atr: float = 1.0,
     ):
         self.engine = ConfidenceEngine()
         self.risk_mode = risk_mode
@@ -53,43 +60,82 @@ class Backtester:
         self.sl_atr = stop_loss_atr
         self.min_confidence = min_confidence
         self.cooldown_bars = cooldown_bars
+        self.use_trailing = use_trailing
+        self.trailing_atr = trailing_atr
+        self.trailing_activate_atr = trailing_activate_atr
 
     def run(self, df: pd.DataFrame, symbol: str = "ASSET") -> BacktestResult:
         df = compute_all_indicators(df).dropna().copy()
         trades: List[Trade] = []
         open_trade: Optional[Trade] = None
         cooldown_until = -1
-
-        equity = [0.0]
         peak = 0.0
         max_dd = 0.0
+        equity_pnl = 0.0
 
         for i in range(1, len(df)):
             row = df.iloc[i]
             ts = df.index[i]
+            atr = float(row["atr"]) if not pd.isna(row["atr"]) else 0.0
 
             if open_trade and not open_trade.exited:
-                atr = row["atr"]
+                price_high = float(row["high"])
+                price_low = float(row["low"])
+                close = float(row["close"])
+
                 if open_trade.side == "BUY":
+                    # Update peak for trailing
+                    if price_high > open_trade.peak_price:
+                        open_trade.peak_price = price_high
+
+                    # Fixed TP
                     tp = open_trade.entry_price + self.tp_atr * atr
-                    sl = open_trade.entry_price - self.sl_atr * atr
-                    if row["high"] >= tp:
+                    # Initial SL
+                    initial_sl = open_trade.entry_price - self.sl_atr * atr
+
+                    # Trailing stop: activate after price moves in favor by trailing_activate_atr
+                    if self.use_trailing and atr > 0:
+                        favor = open_trade.peak_price - open_trade.entry_price
+                        if favor >= self.trailing_activate_atr * atr:
+                            trail_sl = open_trade.peak_price - self.trailing_atr * atr
+                            open_trade.current_sl = max(open_trade.current_sl, trail_sl, initial_sl)
+                        else:
+                            open_trade.current_sl = max(open_trade.current_sl, initial_sl)
+                    else:
+                        open_trade.current_sl = initial_sl
+
+                    if price_high >= tp:
                         open_trade.exit_price = tp
                         open_trade.exit_time = ts
                         open_trade.exited = True
-                    elif row["low"] <= sl:
-                        open_trade.exit_price = sl
+                    elif price_low <= open_trade.current_sl:
+                        open_trade.exit_price = open_trade.current_sl
                         open_trade.exit_time = ts
                         open_trade.exited = True
-                else:
+
+                else:  # SELL
+                    if open_trade.peak_price == 0 or price_low < open_trade.peak_price:
+                        open_trade.peak_price = price_low if open_trade.peak_price == 0 else min(open_trade.peak_price, price_low)
+
                     tp = open_trade.entry_price - self.tp_atr * atr
-                    sl = open_trade.entry_price + self.sl_atr * atr
-                    if row["low"] <= tp:
+                    initial_sl = open_trade.entry_price + self.sl_atr * atr
+
+                    if self.use_trailing and atr > 0:
+                        favor = open_trade.entry_price - open_trade.peak_price
+                        if favor >= self.trailing_activate_atr * atr:
+                            trail_sl = open_trade.peak_price + self.trailing_atr * atr
+                            open_trade.current_sl = min(open_trade.current_sl or initial_sl, trail_sl, initial_sl)
+                        else:
+                            open_trade.current_sl = initial_sl
+                    else:
+                        open_trade.current_sl = initial_sl
+
+                    if price_low <= tp:
                         open_trade.exit_price = tp
                         open_trade.exit_time = ts
                         open_trade.exited = True
-                    elif row["high"] >= sl:
-                        open_trade.exit_price = sl
+                    elif price_high >= open_trade.current_sl:
+                        open_trade.exit_price = open_trade.current_sl
                         open_trade.exit_time = ts
                         open_trade.exited = True
 
@@ -105,31 +151,35 @@ class Backtester:
 
             if open_trade is None and i >= cooldown_until:
                 result = self.engine.evaluate(row, risk_mode=self.risk_mode)
-                if self.min_confidence and result["confidence"] < self.min_confidence:
-                    pass
-                elif result["signal"] in ("BUY", "SELL"):
+                conf_ok = (self.min_confidence is None) or (result["confidence"] >= self.min_confidence)
+                if conf_ok and result["signal"] in ("BUY", "SELL"):
+                    entry = float(row["close"])
                     open_trade = Trade(
                         entry_time=ts,
                         exit_time=None,
                         side=result["signal"],
-                        entry_price=row["close"],
+                        entry_price=entry,
                         exit_price=None,
                         confidence=result["confidence"],
+                        peak_price=entry,
+                        current_sl=0.0,
                     )
 
-            current_pnl = sum(t.pnl_pct for t in trades)
+            # Equity for drawdown
+            closed_pnl = sum(t.pnl_pct for t in trades)
+            unrealized = 0.0
             if open_trade and not open_trade.exited:
                 if open_trade.side == "BUY":
-                    current_pnl += (row["close"] - open_trade.entry_price) / open_trade.entry_price * 100
+                    unrealized = (float(row["close"]) - open_trade.entry_price) / open_trade.entry_price * 100
                 else:
-                    current_pnl += (open_trade.entry_price - row["close"]) / open_trade.entry_price * 100
-            equity.append(current_pnl)
-            peak = max(peak, current_pnl)
-            max_dd = max(max_dd, peak - current_pnl)
+                    unrealized = (open_trade.entry_price - float(row["close"])) / open_trade.entry_price * 100
+            equity_pnl = closed_pnl + unrealized
+            peak = max(peak, equity_pnl)
+            max_dd = max(max_dd, peak - equity_pnl)
 
         if open_trade and not open_trade.exited:
             last = df.iloc[-1]
-            open_trade.exit_price = last["close"]
+            open_trade.exit_price = float(last["close"])
             open_trade.exit_time = df.index[-1]
             open_trade.exited = True
             if open_trade.side == "BUY":
@@ -151,9 +201,9 @@ class Backtester:
             losses = [p for p in pnls if p <= 0]
             result.avg_win = float(np.mean(wins)) if wins else 0.0
             result.avg_loss = float(np.mean(losses)) if losses else 0.0
-            gross_profit = sum(wins) if wins else 0.0
-            gross_loss = abs(sum(losses)) if losses else 0.0
-            result.profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else float("inf")
+            gp = sum(wins) if wins else 0.0
+            gl = abs(sum(losses)) if losses else 0.0
+            result.profit_factor = (gp / gl) if gl > 0 else float("inf")
             result.max_drawdown = max_dd
         return result
 
