@@ -1,39 +1,46 @@
 """
 TradeFusion AI - Performance Tracker
-Stores signals and tracks win/loss outcomes
+Uses Supabase when configured, otherwise local JSON.
 """
 
 import json
-import os
 from datetime import datetime
 from typing import Dict, List, Optional
 from pathlib import Path
+
+from backend.performance.supabase_store import SupabaseStore
 
 DATA_DIR = Path("data")
 SIGNALS_FILE = DATA_DIR / "tracked_signals.json"
 
 
 class PerformanceTracker:
-    def __init__(self, filepath: Path = SIGNALS_FILE):
-        self.filepath = filepath
+    def __init__(self):
         DATA_DIR.mkdir(exist_ok=True)
-        self.signals: List[Dict] = self._load()
+        self.supabase = SupabaseStore()
+        self.use_supabase = self.supabase.is_configured
+        self.signals: List[Dict] = [] if self.use_supabase else self._load_local()
 
-    def _load(self) -> List[Dict]:
-        if self.filepath.exists():
+    def _load_local(self) -> List[Dict]:
+        if SIGNALS_FILE.exists():
             try:
-                with open(self.filepath, "r") as f:
+                with open(SIGNALS_FILE, "r") as f:
                     return json.load(f)
             except Exception:
                 return []
         return []
 
-    def _save(self):
-        with open(self.filepath, "w") as f:
+    def _save_local(self):
+        with open(SIGNALS_FILE, "w") as f:
             json.dump(self.signals, f, indent=2, default=str)
 
     def add_signal(self, analysis: Dict) -> Dict:
-        """Track a new signal."""
+        if self.use_supabase:
+            row = self.supabase.add_signal(analysis)
+            if row:
+                return row
+
+        # Local fallback
         signal = {
             "id": len(self.signals) + 1,
             "timestamp": analysis.get("timestamp") or datetime.utcnow().isoformat(),
@@ -42,68 +49,59 @@ class PerformanceTracker:
             "confidence": analysis.get("confidence"),
             "price": analysis.get("price"),
             "risk_mode": analysis.get("risk_mode"),
-            "structure": analysis.get("structure", {}).get("structure"),
-            "status": "open",          # open | win | loss | expired
+            "structure": analysis.get("structure", {}).get("structure") if isinstance(analysis.get("structure"), dict) else None,
+            "status": "open",
             "exit_price": None,
             "pnl_pct": None,
             "closed_at": None,
             "notes": ""
         }
         self.signals.append(signal)
-        self._save()
+        self._save_local()
         return signal
 
     def close_signal(self, signal_id: int, exit_price: float, status: str = None) -> Optional[Dict]:
-        """Mark a signal as win/loss and calculate PnL."""
+        if self.use_supabase:
+            return self.supabase.close_signal(signal_id, exit_price, status)
+
         for s in self.signals:
             if s["id"] == signal_id and s["status"] == "open":
                 s["exit_price"] = exit_price
                 s["closed_at"] = datetime.utcnow().isoformat()
-
                 entry = s["price"]
                 if s["signal"] == "BUY":
                     pnl = (exit_price - entry) / entry * 100
                 else:
                     pnl = (entry - exit_price) / entry * 100
-
                 s["pnl_pct"] = round(pnl, 2)
-
-                if status:
-                    s["status"] = status
-                else:
-                    s["status"] = "win" if pnl > 0 else "loss"
-
-                self._save()
+                s["status"] = status or ("win" if pnl > 0 else "loss")
+                self._save_local()
                 return s
         return None
 
     def get_open_signals(self) -> List[Dict]:
+        if self.use_supabase:
+            return self.supabase.list_signals(status="open")
         return [s for s in self.signals if s["status"] == "open"]
 
     def get_closed_signals(self) -> List[Dict]:
+        if self.use_supabase:
+            all_s = self.supabase.list_signals()
+            return [s for s in all_s if s.get("status") in ("win", "loss")]
         return [s for s in self.signals if s["status"] in ("win", "loss")]
 
     def summary(self) -> Dict:
         closed = self.get_closed_signals()
+        open_s = self.get_open_signals()
         if not closed:
-            return {
-                "total_signals": len(self.signals),
-                "open": len(self.get_open_signals()),
-                "closed": 0,
-                "wins": 0,
-                "losses": 0,
-                "win_rate": 0.0,
-                "avg_pnl": 0.0,
-                "total_pnl": 0.0
-            }
-
-        wins = [s for s in closed if s["status"] == "win"]
-        losses = [s for s in closed if s["status"] == "loss"]
-        pnls = [s["pnl_pct"] for s in closed if s["pnl_pct"] is not None]
-
+            return {"total_signals": len(closed) + len(open_s), "open": len(open_s), "closed": 0,
+                    "wins": 0, "losses": 0, "win_rate": 0.0, "avg_pnl": 0.0, "total_pnl": 0.0}
+        wins = [s for s in closed if s.get("status") == "win"]
+        losses = [s for s in closed if s.get("status") == "loss"]
+        pnls = [s["pnl_pct"] for s in closed if s.get("pnl_pct") is not None]
         return {
-            "total_signals": len(self.signals),
-            "open": len(self.get_open_signals()),
+            "total_signals": len(closed) + len(open_s),
+            "open": len(open_s),
             "closed": len(closed),
             "wins": len(wins),
             "losses": len(losses),
@@ -116,16 +114,15 @@ class PerformanceTracker:
         closed = self.get_closed_signals()
         by_sym = {}
         for s in closed:
-            sym = s["symbol"]
+            sym = s.get("symbol", "?")
             if sym not in by_sym:
                 by_sym[sym] = {"wins": 0, "losses": 0, "pnls": []}
-            if s["status"] == "win":
+            if s.get("status") == "win":
                 by_sym[sym]["wins"] += 1
             else:
                 by_sym[sym]["losses"] += 1
-            if s["pnl_pct"] is not None:
+            if s.get("pnl_pct") is not None:
                 by_sym[sym]["pnls"].append(s["pnl_pct"])
-
         result = {}
         for sym, data in by_sym.items():
             total = data["wins"] + data["losses"]

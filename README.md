@@ -1,28 +1,20 @@
 # TradeFusion AI
 
-**AI-assisted multi-indicator trading analysis and signal platform**
-
-Multi-indicator confirmation • Weighted confidence • Market structure • Sentinel explanations • Backtesting • Multi-asset scanner • Performance tracking • Telegram alerts • Web dashboard • **Twelve Data support**
-
----
+AI-assisted multi-indicator trading analysis platform with confidence scoring, backtesting, scanner, Telegram alerts, and optional Supabase storage.
 
 ## Features
 
-- **Indicators**: RSI, MACD, EMA 50/200, Bollinger, Stochastic, OBV, ATR
-- **Confidence Engine** (Low / Medium / High risk modes)
-- **Market Structure** analysis
-- **Sentinel AI** explanations
-- **Backtester** (single + multi-asset)
-- **Scheduled Multi-Asset Scanner**
-- **Performance Tracker**
-- **Position Sizing**
-- **Telegram Notifications**
-- **Streamlit Dashboard**
-- **Twelve Data API** (preferred data source) + yfinance fallback
+- Multi-indicator engine (RSI, MACD, EMA, Bollinger, Stochastic, OBV, ATR)
+- Weighted confidence + Low/Medium/High risk modes
+- Market structure analysis + Sentinel explanations
+- Backtester (single + multi-asset)
+- Scheduled multi-asset scanner
+- Performance tracker (local or Supabase)
+- Telegram notifications
+- Streamlit dashboard
+- Data sources: **Twelve Data → Finnhub → yfinance → Synthetic**
 
----
-
-## Quick Start
+## Setup
 
 ```bash
 git clone https://github.com/yussuf113/TradeFusion-AI.git
@@ -30,69 +22,64 @@ cd TradeFusion-AI
 pip install -r requirements.txt
 ```
 
-### Set your Twelve Data API key
+### Configure API keys
 
-```bash
-# Linux / macOS
-export TWELVE_DATA_API_KEY="your_key_here"
+Create a `.env` file in the project root:
 
-# Windows (PowerShell)
-$env:TWELVE_DATA_API_KEY="your_key_here"
+```env
+TWELVE_DATA_API_KEY=your_key
+FINNHUB_API_KEY=your_key
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_CHAT_ID=your_chat_id
+SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_ANON_KEY=your_anon_key
 ```
 
-Or create a `.env` file (see `.env.example`).
+Or export them in your shell.
 
-### Run
+Load `.env` automatically by adding this at the top of scripts (already supported if you use `python-dotenv`), or run:
 
 ```bash
-# Web Dashboard (best experience)
+export $(cat .env | xargs)
+```
+
+### Supabase table (optional)
+
+If you want cloud storage, create a table named `tracked_signals` in Supabase with columns:
+
+- id (int8, primary key, auto)
+- timestamp (text/timestamptz)
+- symbol (text)
+- signal (text)
+- confidence (float8)
+- price (float8)
+- risk_mode (text)
+- structure (text)
+- status (text)
+- exit_price (float8)
+- pnl_pct (float8)
+- closed_at (text/timestamptz)
+- notes (text)
+
+## Run
+
+```bash
+# Dashboard
 streamlit run dashboard.py
 
-# Single backtest
+# Backtest
 python run_backtest.py --symbol BTC-USD --risk medium
 
 # Multi-asset backtest
 python run_multi_backtest.py
 
-# Live scanner (every 5 min)
+# Scanner every 5 minutes + Telegram
 python run_scanner.py --telegram
 
-# One-shot analysis
-python run_analysis.py --symbol ETH-USD
+# One scan
+python run_scanner.py --once
 ```
-
----
-
-## Data Sources (priority order)
-
-1. **Twelve Data** (if `TWELVE_DATA_API_KEY` is set) — best quality
-2. **Yahoo Finance** (`yfinance`) — free fallback
-3. **Synthetic data** — offline testing
-
----
-
-## Supported Assets
-
-**Crypto:** BTC-USD, ETH-USD, SOL-USD, BNB-USD, XRP-USD  
-**Metals:** GC=F (Gold), SI=F (Silver)  
-**Forex:** EURUSD=X, GBPUSD=X, USDJPY=X  
-**Stocks:** AAPL, TSLA
-
----
-
-## Telegram Setup (Optional)
-
-```bash
-export TELEGRAM_BOT_TOKEN="your_token"
-export TELEGRAM_CHAT_ID="your_chat_id"
-```
-
----
 
 ## Disclaimer
 
-For **educational and research purposes only**. Trading involves substantial risk of loss. Past performance is not indicative of future results.
-
----
-
-Built for systematic traders who want multi-confirmation instead of single-indicator noise.
+Educational / research use only. Trading involves risk of loss.
