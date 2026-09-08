@@ -1,2 +1,1 @@
-# Confidence Scoring Engine
-# Weighted multi-indicator confidence calculation
+from .engine import ConfidenceEngine

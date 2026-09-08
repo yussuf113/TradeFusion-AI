@@ -1,2 +1,1 @@
-# Sentinel AI
-# Explanation engine that describes why a signal was generated
+from .explainer import generate_explanation

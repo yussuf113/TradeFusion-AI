@@ -1,2 +1,1 @@
-# Market Data Layer
-# Handles data fetching and preprocessing
+from .fetcher import get_data, generate_synthetic_data
