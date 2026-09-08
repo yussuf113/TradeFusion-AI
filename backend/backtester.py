@@ -1,5 +1,5 @@
 """
-TradeFusion AI - Backtesting Engine
+TradeFusion AI - Backtesting Engine (with cooldown to reduce overtrading)
 """
 
 import pandas as pd
@@ -9,14 +9,13 @@ from dataclasses import dataclass, field
 
 from backend.indicators.core import compute_all_indicators
 from backend.confidence.engine import ConfidenceEngine
-from backend.structure.analyzer import detect_structure
 
 
 @dataclass
 class Trade:
     entry_time: pd.Timestamp
     exit_time: Optional[pd.Timestamp]
-    side: str                  # "BUY" or "SELL"
+    side: str
     entry_price: float
     exit_price: Optional[float]
     confidence: float
@@ -43,22 +42,23 @@ class Backtester:
     def __init__(
         self,
         risk_mode: str = "medium",
-        take_profit_atr: float = 2.0,
+        take_profit_atr: float = 2.5,
         stop_loss_atr: float = 1.2,
-        min_confidence: float = None
+        min_confidence: float = None,
+        cooldown_bars: int = 6,  # wait N bars after a trade before new entry
     ):
         self.engine = ConfidenceEngine()
         self.risk_mode = risk_mode
         self.tp_atr = take_profit_atr
         self.sl_atr = stop_loss_atr
         self.min_confidence = min_confidence
+        self.cooldown_bars = cooldown_bars
 
     def run(self, df: pd.DataFrame, symbol: str = "ASSET") -> BacktestResult:
-        df = compute_all_indicators(df)
-        df = df.dropna().copy()
-
+        df = compute_all_indicators(df).dropna().copy()
         trades: List[Trade] = []
         open_trade: Optional[Trade] = None
+        cooldown_until = -1
 
         equity = [0.0]
         peak = 0.0
@@ -66,10 +66,8 @@ class Backtester:
 
         for i in range(1, len(df)):
             row = df.iloc[i]
-            prev_row = df.iloc[i-1]
             ts = df.index[i]
 
-            # Manage open trade
             if open_trade and not open_trade.exited:
                 atr = row["atr"]
                 if open_trade.side == "BUY":
@@ -83,7 +81,7 @@ class Backtester:
                         open_trade.exit_price = sl
                         open_trade.exit_time = ts
                         open_trade.exited = True
-                else:  # SELL
+                else:
                     tp = open_trade.entry_price - self.tp_atr * atr
                     sl = open_trade.entry_price + self.sl_atr * atr
                     if row["low"] <= tp:
@@ -103,40 +101,32 @@ class Backtester:
                     open_trade.pnl = open_trade.pnl_pct
                     trades.append(open_trade)
                     open_trade = None
+                    cooldown_until = i + self.cooldown_bars
 
-            # Generate new signal only if flat
-            if open_trade is None:
+            if open_trade is None and i >= cooldown_until:
                 result = self.engine.evaluate(row, risk_mode=self.risk_mode)
-
                 if self.min_confidence and result["confidence"] < self.min_confidence:
-                    continue
-
-                if result["signal"] in ("BUY", "SELL"):
+                    pass
+                elif result["signal"] in ("BUY", "SELL"):
                     open_trade = Trade(
                         entry_time=ts,
                         exit_time=None,
                         side=result["signal"],
                         entry_price=row["close"],
                         exit_price=None,
-                        confidence=result["confidence"]
+                        confidence=result["confidence"],
                     )
 
-            # Equity curve (simplified)
             current_pnl = sum(t.pnl_pct for t in trades)
             if open_trade and not open_trade.exited:
-                # Mark-to-market
                 if open_trade.side == "BUY":
                     current_pnl += (row["close"] - open_trade.entry_price) / open_trade.entry_price * 100
                 else:
                     current_pnl += (open_trade.entry_price - row["close"]) / open_trade.entry_price * 100
-
             equity.append(current_pnl)
             peak = max(peak, current_pnl)
-            dd = peak - current_pnl
-            if dd > max_dd:
-                max_dd = dd
+            max_dd = max(max_dd, peak - current_pnl)
 
-        # Close any remaining trade at last price
         if open_trade and not open_trade.exited:
             last = df.iloc[-1]
             open_trade.exit_price = last["close"]
@@ -149,7 +139,6 @@ class Backtester:
             open_trade.pnl = open_trade.pnl_pct
             trades.append(open_trade)
 
-        # Statistics
         result = BacktestResult(trades=trades)
         result.total_trades = len(trades)
         if result.total_trades > 0:
@@ -160,20 +149,19 @@ class Backtester:
             result.total_pnl_pct = sum(pnls)
             wins = [p for p in pnls if p > 0]
             losses = [p for p in pnls if p <= 0]
-            result.avg_win = np.mean(wins) if wins else 0.0
-            result.avg_loss = np.mean(losses) if losses else 0.0
+            result.avg_win = float(np.mean(wins)) if wins else 0.0
+            result.avg_loss = float(np.mean(losses)) if losses else 0.0
             gross_profit = sum(wins) if wins else 0.0
             gross_loss = abs(sum(losses)) if losses else 0.0
             result.profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else float("inf")
             result.max_drawdown = max_dd
-
         return result
 
 
 def print_backtest_report(result: BacktestResult, symbol: str = "ASSET"):
-    print("\n" + "="*55)
+    print("\n" + "=" * 55)
     print(f" BACKTEST REPORT — {symbol}")
-    print("="*55)
+    print("=" * 55)
     print(f"Total Trades     : {result.total_trades}")
     print(f"Wins / Losses    : {result.wins} / {result.losses}")
     print(f"Win Rate         : {result.win_rate:.1f}%")
@@ -182,8 +170,7 @@ def print_backtest_report(result: BacktestResult, symbol: str = "ASSET"):
     print(f"Average Loss     : {result.avg_loss:+.2f}%")
     print(f"Profit Factor    : {result.profit_factor:.2f}")
     print(f"Max Drawdown     : {result.max_drawdown:.2f}%")
-    print("="*55)
-
+    print("=" * 55)
     if result.trades:
         print("\nLast 10 trades:")
         for t in result.trades[-10:]:
