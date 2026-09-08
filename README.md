@@ -2,7 +2,7 @@
 
 **AI-assisted multi-indicator trading analysis and signal platform**
 
-Multi-indicator confirmation • Weighted confidence • Market structure • Sentinel explanations • Backtesting • Multi-asset scanner • Performance tracking • Telegram alerts • Web dashboard
+Multi-indicator confirmation • Weighted confidence • Market structure • Sentinel explanations • Backtesting • Multi-asset scanner • Performance tracking • Telegram alerts • Web dashboard • **Twelve Data support**
 
 ---
 
@@ -13,11 +13,12 @@ Multi-indicator confirmation • Weighted confidence • Market structure • Se
 - **Market Structure** analysis
 - **Sentinel AI** explanations
 - **Backtester** (single + multi-asset)
-- **Scheduled Multi-Asset Scanner** (every 5 minutes by default)
-- **Performance Tracker** (track signals → record wins/losses → win rate)
+- **Scheduled Multi-Asset Scanner**
+- **Performance Tracker**
 - **Position Sizing**
 - **Telegram Notifications**
 - **Streamlit Dashboard**
+- **Twelve Data API** (preferred data source) + yfinance fallback
 
 ---
 
@@ -29,38 +30,48 @@ cd TradeFusion-AI
 pip install -r requirements.txt
 ```
 
-### 1. Web Dashboard (recommended)
+### Set your Twelve Data API key
+
 ```bash
+# Linux / macOS
+export TWELVE_DATA_API_KEY="your_key_here"
+
+# Windows (PowerShell)
+$env:TWELVE_DATA_API_KEY="your_key_here"
+```
+
+Or create a `.env` file (see `.env.example`).
+
+### Run
+
+```bash
+# Web Dashboard (best experience)
 streamlit run dashboard.py
-```
 
-### 2. Single asset backtest
-```bash
+# Single backtest
 python run_backtest.py --symbol BTC-USD --risk medium
-```
 
-### 3. Multi-asset backtest
-```bash
-python run_multi_backtest.py --symbols BTC-USD ETH-USD GC=F
-```
+# Multi-asset backtest
+python run_multi_backtest.py
 
-### 4. Live Scanner (runs every 5 min)
-```bash
-# One scan
-python run_scanner.py --once
+# Live scanner (every 5 min)
+python run_scanner.py --telegram
 
-# Continuous scanning + Telegram alerts
-python run_scanner.py --telegram --interval 300
-```
-
-### 5. Single snapshot
-```bash
+# One-shot analysis
 python run_analysis.py --symbol ETH-USD
 ```
 
 ---
 
-## Supported Assets (default scanner list)
+## Data Sources (priority order)
+
+1. **Twelve Data** (if `TWELVE_DATA_API_KEY` is set) — best quality
+2. **Yahoo Finance** (`yfinance`) — free fallback
+3. **Synthetic data** — offline testing
+
+---
+
+## Supported Assets
 
 **Crypto:** BTC-USD, ETH-USD, SOL-USD, BNB-USD, XRP-USD  
 **Metals:** GC=F (Gold), SI=F (Silver)  
@@ -69,31 +80,18 @@ python run_analysis.py --symbol ETH-USD
 
 ---
 
-## Telegram Setup
+## Telegram Setup (Optional)
 
-1. Talk to [@BotFather](https://t.me/BotFather) → create bot → copy token
-2. Get your Chat ID (e.g. @userinfobot)
-3. Set environment variables:
 ```bash
 export TELEGRAM_BOT_TOKEN="your_token"
 export TELEGRAM_CHAT_ID="your_chat_id"
 ```
-Or enter them directly in the Dashboard.
-
----
-
-## Performance Tracker
-
-Signals can be tracked from the Dashboard or automatically by the Scanner.  
-Later you mark them as Win/Loss and the system calculates win rate, average PnL, and performance by asset.
-
-Data is stored locally in `data/tracked_signals.json`.
 
 ---
 
 ## Disclaimer
 
-For **educational and research purposes only**. Trading involves substantial risk of loss. Backtests and past signals do not guarantee future results.
+For **educational and research purposes only**. Trading involves substantial risk of loss. Past performance is not indicative of future results.
 
 ---
 
