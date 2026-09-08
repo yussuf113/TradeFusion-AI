@@ -1,11 +1,7 @@
 #!/usr/bin/env python3
-"""
-TradeFusion AI - Single Snapshot Analysis
-Usage:
-    python run_analysis.py
-    python run_analysis.py --symbol ETH-USD --risk low
-"""
+"""TradeFusion AI - Single Snapshot Analysis"""
 
+import backend.config  # auto-loads .env
 import argparse
 from backend.data.fetcher import get_data
 from backend.analyzer import TradeFusionAnalyzer
@@ -26,8 +22,7 @@ def main():
 
     print("\n" + result["explanation"])
     print(f"\nCurrent Price : {result['price']}")
-    print(f"Signal        : {result['signal']} ({result['confidence']}%)")
-    print()
+    print(f"Signal        : {result['signal']} ({result['confidence']}%)\n")
 
 
 if __name__ == "__main__":

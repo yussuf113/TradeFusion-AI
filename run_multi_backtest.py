@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""
-TradeFusion AI - Multi-Asset Backtester
-"""
+"""TradeFusion AI - Multi-Asset Backtester"""
 
+import backend.config  # auto-loads .env
 import argparse
 from backend.data.fetcher import get_data
 from backend.backtester import Backtester, print_backtest_report
@@ -24,24 +23,14 @@ def main():
     print(f"   Risk   : {args.risk}\n")
 
     summary = []
-
     for symbol in args.symbols:
-        print(f"\n{'─'*50}")
-        print(f" Testing {symbol}...")
+        print(f"\n{'─'*50}\n Testing {symbol}...")
         try:
             df = get_data(symbol, args.period, args.interval, use_synthetic=args.synthetic)
-            bt = Backtester(risk_mode=args.risk)
-            result = bt.run(df, symbol=symbol)
+            result = Backtester(risk_mode=args.risk).run(df, symbol=symbol)
             print_backtest_report(result, symbol=symbol)
-
-            summary.append({
-                "symbol": symbol,
-                "trades": result.total_trades,
-                "win_rate": result.win_rate,
-                "pnl": result.total_pnl_pct,
-                "profit_factor": result.profit_factor,
-                "max_dd": result.max_drawdown
-            })
+            summary.append({"symbol": symbol, "trades": result.total_trades, "win_rate": result.win_rate,
+                            "pnl": result.total_pnl_pct, "profit_factor": result.profit_factor, "max_dd": result.max_drawdown})
         except Exception as e:
             print(f"  Failed: {e}")
 
