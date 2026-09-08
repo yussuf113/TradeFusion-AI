@@ -2,20 +2,22 @@
 
 **AI-assisted multi-indicator trading analysis and signal platform**
 
-Multi-indicator confirmation • Weighted confidence scoring • Market structure • Sentinel explanations • Full backtesting • Telegram alerts • Web dashboard
+Multi-indicator confirmation • Weighted confidence • Market structure • Sentinel explanations • Backtesting • Multi-asset scanner • Performance tracking • Telegram alerts • Web dashboard
 
 ---
 
 ## Features
 
-- **Indicators**: RSI, MACD, EMA 50/200, Bollinger Bands, Stochastic, OBV, ATR
-- **Confidence Engine** with Low / Medium / High risk modes
-- **Market Structure** (trend, support, resistance)
+- **Indicators**: RSI, MACD, EMA 50/200, Bollinger, Stochastic, OBV, ATR
+- **Confidence Engine** (Low / Medium / High risk modes)
+- **Market Structure** analysis
 - **Sentinel AI** explanations
 - **Backtester** (single + multi-asset)
-- **Position Sizing** (risk-based)
+- **Scheduled Multi-Asset Scanner** (every 5 minutes by default)
+- **Performance Tracker** (track signals → record wins/losses → win rate)
+- **Position Sizing**
 - **Telegram Notifications**
-- **Streamlit Dashboard** with live charts
+- **Streamlit Dashboard**
 
 ---
 
@@ -27,70 +29,72 @@ cd TradeFusion-AI
 pip install -r requirements.txt
 ```
 
-### 1. Backtest (single asset)
-```bash
-python run_backtest.py --symbol BTC-USD --risk medium
-python run_backtest.py --synthetic          # offline mode
-```
-
-### 2. Multi-asset backtest
-```bash
-python run_multi_backtest.py --symbols BTC-USD ETH-USD GC=F --risk medium
-```
-
-### 3. Web Dashboard
+### 1. Web Dashboard (recommended)
 ```bash
 streamlit run dashboard.py
 ```
 
-### 4. Single analysis
+### 2. Single asset backtest
 ```bash
-python run_analysis.py --symbol ETH-USD --risk low
+python run_backtest.py --symbol BTC-USD --risk medium
+```
+
+### 3. Multi-asset backtest
+```bash
+python run_multi_backtest.py --symbols BTC-USD ETH-USD GC=F
+```
+
+### 4. Live Scanner (runs every 5 min)
+```bash
+# One scan
+python run_scanner.py --once
+
+# Continuous scanning + Telegram alerts
+python run_scanner.py --telegram --interval 300
+```
+
+### 5. Single snapshot
+```bash
+python run_analysis.py --symbol ETH-USD
 ```
 
 ---
 
-## Telegram Setup (Optional)
+## Supported Assets (default scanner list)
 
-1. Create a bot with [@BotFather](https://t.me/BotFather) and copy the token
-2. Get your Chat ID (e.g. via @userinfobot)
-3. Either:
-   - Set environment variables:
-     ```bash
-     export TELEGRAM_BOT_TOKEN="your_token"
-     export TELEGRAM_CHAT_ID="your_chat_id"
-     ```
-   - Or enter them in the Dashboard sidebar
+**Crypto:** BTC-USD, ETH-USD, SOL-USD, BNB-USD, XRP-USD  
+**Metals:** GC=F (Gold), SI=F (Silver)  
+**Forex:** EURUSD=X, GBPUSD=X, USDJPY=X  
+**Stocks:** AAPL, TSLA
 
 ---
 
-## Project Structure
+## Telegram Setup
 
+1. Talk to [@BotFather](https://t.me/BotFather) → create bot → copy token
+2. Get your Chat ID (e.g. @userinfobot)
+3. Set environment variables:
+```bash
+export TELEGRAM_BOT_TOKEN="your_token"
+export TELEGRAM_CHAT_ID="your_chat_id"
 ```
-TradeFusion-AI/
-├── backend/
-│   ├── indicators/        # Technical indicators
-│   ├── confidence/        # Weighted scoring engine
-│   ├── structure/         # Market structure
-│   ├── sentinel/          # Explanations
-│   ├── data/              # Data fetching
-│   ├── notifications/     # Telegram
-│   ├── position_sizing.py
-│   ├── analyzer.py
-│   └── backtester.py
-├── run_backtest.py
-├── run_multi_backtest.py
-├── run_analysis.py
-├── dashboard.py           # Streamlit web UI
-└── requirements.txt
-```
+Or enter them directly in the Dashboard.
+
+---
+
+## Performance Tracker
+
+Signals can be tracked from the Dashboard or automatically by the Scanner.  
+Later you mark them as Win/Loss and the system calculates win rate, average PnL, and performance by asset.
+
+Data is stored locally in `data/tracked_signals.json`.
 
 ---
 
 ## Disclaimer
 
-For **educational and research purposes only**. Trading involves substantial risk of loss. Backtest results do not guarantee future performance.
+For **educational and research purposes only**. Trading involves substantial risk of loss. Backtests and past signals do not guarantee future results.
 
 ---
 
-Built for systematic traders who prefer multi-confirmation over single-indicator noise.
+Built for systematic traders who want multi-confirmation instead of single-indicator noise.
