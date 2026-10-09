@@ -34,10 +34,11 @@ def optimize_symbol(
     symbol: str,
     period: str = "6mo",
     interval: str = "1h",
-    use_synthetic: bool = False,
     max_combos: int = 80,
 ) -> Dict:
-    df = get_data(symbol, period=period, interval=interval, use_synthetic=use_synthetic)
+    df = get_data(symbol, period=period, interval=interval)
+    if df is None:
+        return {"symbol": symbol, "error": "DATA UNAVAILABLE -- all providers failed", "best": None, "tested": 0, "top5": []}
     keys = list(PARAM_GRID.keys())
     values = [PARAM_GRID[k] for k in keys]
     combos = list(itertools.product(*values))
@@ -80,7 +81,7 @@ def optimize_symbol(
 def optimize_many(symbols: List[str], **kwargs) -> Dict[str, Dict]:
     out = {}
     for sym in symbols:
-        print(f"\n🔧 Optimizing {sym}...")
+        print(f"\n[*] Optimizing {sym}...")
         try:
             out[sym] = optimize_symbol(sym, **kwargs)
             b = out[sym]["best"]

@@ -18,7 +18,7 @@ DEFAULT_WEIGHTS = {
 
 class ConfidenceEngine:
     def __init__(self, weights: Dict[str, float] = None, threshold: float = 68.0):
-        # Raised default threshold from 60 → 68 for fewer, higher-quality signals
+        # Raised default threshold from 60 -> 68 for fewer, higher-quality signals
         self.weights = weights or DEFAULT_WEIGHTS
         self.threshold = threshold
 
@@ -35,14 +35,16 @@ class ConfidenceEngine:
             return 0.28, 0.72
         return 0.50, 0.50
 
-    def _score_macd(self, macd: float, signal: float, hist: float) -> Tuple[float, float]:
+    def _score_macd(self, macd: float, signal: float, hist: float, close: float = None) -> Tuple[float, float]:
         if pd.isna(macd) or pd.isna(signal):
             return 0.5, 0.5
-        if macd > signal and hist > 0:
+        if close is not None and 0 < close < 10.0:
+            strength = min((abs(hist) / close) * 2500, 1.0)
+        else:
             strength = min(abs(hist) * 40, 1.0)
+        if macd > signal and hist > 0:
             return 0.65 + 0.30 * strength, 0.35 - 0.30 * strength
         elif macd < signal and hist < 0:
-            strength = min(abs(hist) * 40, 1.0)
             return 0.35 - 0.30 * strength, 0.65 + 0.30 * strength
         return 0.5, 0.5
 
@@ -58,7 +60,7 @@ class ConfidenceEngine:
             return 0.10, 0.90
         elif close < ema50 and ema50 < ema200 * 1.002:
             return 0.30, 0.70
-        return 0.48, 0.52
+        return 0.50, 0.50
 
     def _score_bollinger(self, close: float, lower: float, upper: float, position: float) -> Tuple[float, float]:
         if pd.isna(position):
@@ -82,9 +84,9 @@ class ConfidenceEngine:
             return 0.28, 0.72
         return 0.5, 0.5
 
-    def _score_obv(self, obv: float, obv_ema: float) -> Tuple[float, float]:
-        if pd.isna(obv) or pd.isna(obv_ema):
-            return 0.5, 0.5
+    def _score_obv(self, obv: float, obv_ema: float, volume: float = None) -> Tuple[float, float]:
+        if pd.isna(obv) or pd.isna(obv_ema) or (volume is not None and volume == 0) or (obv == 0 and obv_ema == 0):
+            return 0.50, 0.50
         if obv > obv_ema:
             return 0.72, 0.28
         return 0.28, 0.72
@@ -96,17 +98,17 @@ class ConfidenceEngine:
         if 0.4 < atr_pct < 2.8:
             return 0.62, 0.38
         if atr_pct >= 4.5:
-            return 0.35, 0.35  # extreme vol → neutral / reduce
+            return 0.35, 0.35  # extreme vol -> neutral / reduce
         return 0.50, 0.50
 
     def evaluate(self, row: pd.Series, risk_mode: str = "medium") -> Dict:
         scores = {
             "rsi": self._score_rsi(row.get("rsi")),
-            "macd": self._score_macd(row.get("macd"), row.get("macd_signal"), row.get("macd_hist")),
+            "macd": self._score_macd(row.get("macd"), row.get("macd_signal"), row.get("macd_hist"), close=row.get("close")),
             "ema_trend": self._score_ema_trend(row.get("close"), row.get("ema_50"), row.get("ema_200")),
             "bollinger": self._score_bollinger(row.get("close"), row.get("bb_lower"), row.get("bb_upper"), row.get("bb_position")),
             "stochastic": self._score_stochastic(row.get("stoch_k"), row.get("stoch_d")),
-            "obv": self._score_obv(row.get("obv"), row.get("obv_ema")),
+            "obv": self._score_obv(row.get("obv"), row.get("obv_ema"), volume=row.get("volume")),
             "atr_vol": self._score_atr(row.get("atr"), row.get("close")),
         }
 
@@ -120,7 +122,7 @@ class ConfidenceEngine:
         bullish_pct = (bullish / total) * 100 if total > 0 else 50.0
         bearish_pct = (bearish / total) * 100 if total > 0 else 50.0
 
-        # Risk modes — tightened
+        # Risk modes -- tightened
         if risk_mode == "low":
             effective_threshold = self.threshold + 8   # ~76%
         elif risk_mode == "high":

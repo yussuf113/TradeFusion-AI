@@ -43,7 +43,7 @@ class TelegramNotifier:
         price = analysis.get("price", 0)
         risk = analysis.get("risk_mode", "medium").capitalize()
         structure = analysis.get("structure", {}).get("structure", "unknown").capitalize()
-        emoji = "🟢" if signal == "BUY" else "🔴" if signal == "SELL" else "⚪"
+        emoji = "[BUY]" if signal == "BUY" else "[SELL]" if signal == "SELL" else "[WAIT]"
         msg = (
             f"{emoji} <b>TRADEFUSION SIGNAL</b>\n\n"
             f"<b>Asset</b>: {symbol}\n"
@@ -52,6 +52,6 @@ class TelegramNotifier:
             f"<b>Price</b>: {price}\n"
             f"<b>Risk Mode</b>: {risk}\n"
             f"<b>Structure</b>: {structure}\n\n"
-            f"⏰ TradeFusion AI"
+            f"  TradeFusion AI"
         )
         return self.send(msg)

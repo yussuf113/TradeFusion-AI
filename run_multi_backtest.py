@@ -15,18 +15,21 @@ def main():
     parser.add_argument("--period", default="6mo")
     parser.add_argument("--interval", default="1h")
     parser.add_argument("--risk", default="medium", choices=["low", "medium", "high"])
-    parser.add_argument("--synthetic", action="store_true")
     args = parser.parse_args()
 
-    print("\n🚀 TradeFusion AI — Multi-Asset Backtest")
+    print("\n[*] TradeFusion AI -- Multi-Asset Backtest")
     print(f"   Assets : {', '.join(args.symbols)}")
-    print(f"   Risk   : {args.risk}\n")
+    print(f"   Risk   : {args.risk}")
+    print("   [!]   HISTORICAL SIMULATION -- Not real executed trades.\n")
 
     summary = []
     for symbol in args.symbols:
-        print(f"\n{'─'*50}\n Testing {symbol}...")
+        print(f"\n{'-'*50}\n Testing {symbol}...")
         try:
-            df = get_data(symbol, args.period, args.interval, use_synthetic=args.synthetic)
+            df = get_data(symbol, args.period, args.interval)
+            if df is None:
+                print(f"  [SELL] DATA UNAVAILABLE for {symbol}")
+                continue
             result = Backtester(risk_mode=args.risk).run(df, symbol=symbol)
             print_backtest_report(result, symbol=symbol)
             summary.append({"symbol": symbol, "trades": result.total_trades, "win_rate": result.win_rate,

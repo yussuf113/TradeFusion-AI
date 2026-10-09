@@ -34,3 +34,7 @@ config.local.*
 *.csv
 data/raw/
 logs/
+
+# TradeFusion runtime data (keep private)
+data/personal_trades.json
+data/user_settings.json

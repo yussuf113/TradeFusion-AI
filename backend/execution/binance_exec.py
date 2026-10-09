@@ -40,7 +40,7 @@ class BinanceExecutor:
             print("[Binance] LIVE mode enabled")
         else:
             if live:
-                print("[Binance] Live requested but keys/ccxt missing → PAPER mode")
+                print("[Binance] Live requested but keys/ccxt missing -> PAPER mode")
             else:
                 print("[Binance] PAPER trading mode")
 
@@ -69,8 +69,8 @@ class BinanceExecutor:
                 if side == "BUY":
                     order = self.exchange.create_market_buy_order_with_cost(bn_symbol, amount_usd)
                 else:
-                    # For sell need base amount — simplify: skip if no position tracking
-                    return {"status": "error", "message": "Live SELL requires position tracking — use paper first"}
+                    # For sell need base amount -- simplify: skip if no position tracking
+                    return {"status": "error", "message": "Live SELL requires position tracking -- use paper first"}
                 return {"status": "live", "order": order, "symbol": bn_symbol, "side": side, "time": ts}
             except Exception as e:
                 return {"status": "error", "message": str(e)}

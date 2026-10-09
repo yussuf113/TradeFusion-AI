@@ -210,7 +210,7 @@ class Backtester:
 
 def print_backtest_report(result: BacktestResult, symbol: str = "ASSET"):
     print("\n" + "=" * 55)
-    print(f" BACKTEST REPORT — {symbol}")
+    print(f" BACKTEST REPORT -- {symbol}")
     print("=" * 55)
     print(f"Total Trades     : {result.total_trades}")
     print(f"Wins / Losses    : {result.wins} / {result.losses}")
@@ -224,5 +224,5 @@ def print_backtest_report(result: BacktestResult, symbol: str = "ASSET"):
     if result.trades:
         print("\nLast 10 trades:")
         for t in result.trades[-10:]:
-            print(f"  {t.side:4} | Entry {t.entry_price:.4f} → Exit {t.exit_price:.4f} | "
+            print(f"  {t.side:4} | Entry {t.entry_price:.4f} -> Exit {t.exit_price:.4f} | "
                   f"PnL {t.pnl_pct:+.2f}% | Conf {t.confidence:.0f}%")

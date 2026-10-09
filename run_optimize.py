@@ -14,11 +14,10 @@ def main():
     parser = argparse.ArgumentParser(description="TradeFusion per-asset optimizer")
     parser.add_argument("--symbols", nargs="+", default=DEFAULT)
     parser.add_argument("--period", default="6mo")
-    parser.add_argument("--synthetic", action="store_true")
     args = parser.parse_args()
 
-    print("🚀 TradeFusion Parameter Optimizer")
-    results = optimize_many(args.symbols, period=args.period, use_synthetic=args.synthetic)
+    print("[*] TradeFusion Parameter Optimizer")
+    results = optimize_many(args.symbols, period=args.period)
 
     # Save best params
     best_map = {}
@@ -30,7 +29,7 @@ def main():
     out_path.parent.mkdir(exist_ok=True)
     with open(out_path, "w") as f:
         json.dump(best_map, f, indent=2)
-    print(f"\n✅ Saved best params → {out_path}")
+    print(f"\n[OK] Saved best params -> {out_path}")
 
     print("\n" + "=" * 60)
     print(" BEST PARAMETERS BY ASSET")

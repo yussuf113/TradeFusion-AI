@@ -30,7 +30,7 @@ def generate_explanation(result: Dict, structure: Dict, symbol: str = "ASSET") -
         bull = scores["bull"]
         bear = scores["bear"]
         bias = "Bullish" if bull > bear else "Bearish" if bear > bull else "Neutral"
-        lines.append(f"  • {name.upper():12} → {bias} (Bull {bull}% / Bear {bear}%)")
+        lines.append(f"  - {name.upper():12} -> {bias} (Bull {bull}% / Bear {bear}%)")
 
     # Summary sentence
     if signal == "BUY":

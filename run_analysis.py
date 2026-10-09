@@ -13,12 +13,20 @@ def main():
     parser.add_argument("--period", default="3mo")
     parser.add_argument("--interval", default="1h")
     parser.add_argument("--risk", default="medium", choices=["low", "medium", "high"])
-    parser.add_argument("--synthetic", action="store_true")
     args = parser.parse_args()
 
-    df = get_data(args.symbol, args.period, args.interval, use_synthetic=args.synthetic)
+    df = get_data(args.symbol, args.period, args.interval)
+    if df is None:
+        print(f"\n[SELL] DATA UNAVAILABLE -- all providers failed for {args.symbol} ({args.interval}).")
+        print("Check your API keys in .env and network connectivity.\n")
+        return
+
     analyzer = TradeFusionAnalyzer(risk_mode=args.risk)
     result = analyzer.analyze(df, symbol=args.symbol)
+
+    if "error" in result:
+        print(f"\n[!]   Analysis error: {result['error']}\n")
+        return
 
     print("\n" + result["explanation"])
     print(f"\nCurrent Price : {result['price']}")

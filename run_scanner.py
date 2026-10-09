@@ -30,39 +30,45 @@ def scan_once(symbols, risk_mode, send_telegram=False, track=True, min_confidenc
     results = []
 
     print(f"\n{'='*60}")
-    print(f" TradeFusion Scanner — {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+    print(f" TradeFusion Scanner -- {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
     print(f" Risk: {risk_mode.upper()} | Assets: {len(symbols)} | Paper: {paper_trade}")
     print(f"{'='*60}\n")
 
     for symbol in symbols:
         try:
-            df = get_data(symbol, period="3mo", interval="1h", use_synthetic=False)
+            df = get_data(symbol, period="3mo", interval="1h")
+            if df is None:
+                print(f"[SELL] {symbol:12} | DATA UNAVAILABLE")
+                continue
             analysis = analyzer.analyze(df, symbol=symbol)
+            if "error" in analysis:
+                print(f"[!]   {symbol:12} | {analysis['error']}")
+                continue
             signal, conf, price = analysis["signal"], analysis["confidence"], analysis["price"]
-            emoji = "🟢" if signal == "BUY" else "🔴" if signal == "SELL" else "⚪"
+            emoji = "[BUY]" if signal == "BUY" else "[SELL]" if signal == "SELL" else "[WAIT]"
             print(f"{emoji} {symbol:12} | {signal:8} | Conf {conf:5.1f}% | Price {price}")
             results.append(analysis)
 
             if signal in ("BUY", "SELL") and conf >= min_confidence:
                 if track and tracker:
                     tracker.add_signal(analysis)
-                    print(f"   → Tracked")
+                    print(f"   -> Tracked")
                 if send_telegram and notifier.is_configured:
                     notifier.send_signal(analysis)
-                    print(f"   → Telegram sent")
+                    print(f"   -> Telegram sent")
                 if paper_trade and executor:
                     order = executor.place_order(symbol, signal, conf, price=price)
-                    print(f"   → Paper order: {order.get('status', order)}")
+                    print(f"   -> Paper order: {order.get('status', order)}")
         except Exception as e:
-            print(f"❌ {symbol:12} | Error: {e}")
+            print(f"[X] {symbol:12} | Error: {e}")
 
     buys = sum(1 for r in results if r["signal"] == "BUY")
     sells = sum(1 for r in results if r["signal"] == "SELL")
-    print(f"\n{'─'*60}")
+    print(f"\n{'-'*60}")
     print(f" Summary: {buys} BUY | {sells} SELL | {len(results)-buys-sells} NO TRADE")
     if paper_trade and executor:
         print(f" Paper trades so far: {len(executor.get_paper_trades())}")
-    print(f"{'─'*60}\n")
+    print(f"{'-'*60}\n")
     return results
 
 
@@ -78,7 +84,7 @@ def main():
     parser.add_argument("--paper", action="store_true", help="Auto-place paper Binance orders on signals")
     args = parser.parse_args()
 
-    print("🚀 TradeFusion AI Scanner started")
+    print("[*] TradeFusion AI Scanner started")
     executor = BinanceExecutor(live=False) if args.paper else None
     if args.paper:
         print("   Paper Binance orders: ON")
